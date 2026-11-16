@@ -34,6 +34,7 @@ import {
     maximizeWindow,
     unmaximizeWindow,
 } from '../../utils/gnomesupport';
+import { logGeomRequest } from '../../utils/geomDebug';
 
 const MINIMUM_DISTANCE_TO_RESTORE_ORIGINAL_SIZE = 90;
 
@@ -1062,14 +1063,18 @@ export class TilingManager {
         const windowActor = window.get_compositor_private() as Clutter.Actor;
 
         const beforeRect = window.get_frame_rect();
-        // do not animate the window if it will not move or scale
-        if (
+        const unchanged =
             destRect.x === beforeRect.x &&
             destRect.y === beforeRect.y &&
             destRect.width === beforeRect.width &&
-            destRect.height === beforeRect.height
-        )
-            return;
+            destRect.height === beforeRect.height;
+        logGeomRequest(
+            unchanged ? 'move-resize-unchanged' : 'move-resize',
+            window,
+            destRect,
+        );
+        // do not animate the window if it will not move or scale
+        if (unchanged) return;
 
         // apply animations when tiling the window
         windowActor.remove_all_transitions();
@@ -1320,6 +1325,7 @@ export class TilingManager {
             this._workArea,
         );
         if (skipAnimation) {
+            logGeomRequest('move-resize', window, destinationRect);
             window.move_resize_frame(
                 false,
                 destinationRect.x,

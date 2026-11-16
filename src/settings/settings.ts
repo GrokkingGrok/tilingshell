@@ -127,6 +127,7 @@ export default class Settings {
     static KEY_ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS = 'enable-screen-edges-windows-suggestions';
     static KEY_EDGE_TILING_MODE = 'edge-tiling-mode';
     static KEY_SYNC_LAYOUT_ACROSS_WORKSPACES = 'sync-layout-across-workspaces';
+    static KEY_DEBUG_GEOMETRY_LOG = 'debug-geometry-log';
 
     static SETTING_MOVE_WINDOW_RIGHT = 'move-window-right';
     static SETTING_MOVE_WINDOW_LEFT = 'move-window-left';
@@ -710,6 +711,14 @@ export default class Settings {
                 'Layout 4',
             ),
         ]);
+    }
+
+    static get DEBUG_GEOMETRY_LOG(): boolean {
+        return get_boolean(Settings.KEY_DEBUG_GEOMETRY_LOG);
+    }
+
+    static set DEBUG_GEOMETRY_LOG(val: boolean) {
+        set_boolean(Settings.KEY_DEBUG_GEOMETRY_LOG, val);
     }
 
     static save_layouts_json(layouts: Layout[]) {

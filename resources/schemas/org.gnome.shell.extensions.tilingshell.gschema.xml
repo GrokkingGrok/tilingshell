@@ -304,6 +304,11 @@
             <default><![CDATA[['']]]></default>
             <summary>Cycle backwards through available workspace layouts</summary>
         </key>
+        <key name="debug-geometry-log" type="b">
+            <default>false</default>
+            <summary>Log tiled window geometry</summary>
+            <description>When enabled, write tiled-window frame, buffer, and tile rectangles to the journal with the [TS-GEOM] prefix. Toggle with gsettings. Off by default.</description>
+        </key>
     </schema>
 
 </schemalist>

@@ -1,6 +1,7 @@
 import { registerGObjectClass } from '../../utils/gjs';
 import SignalHandling from '../../utils/signalHandling';
 import { GObject, Meta, Mtk, Clutter, Graphene } from '../../gi/ext';
+import { logGeomRequest } from '../../utils/geomDebug';
 
 class CachedWindowProperties {
     private _is_initialized: boolean = false;
@@ -160,6 +161,7 @@ export default class TilingShellWindowManager extends GObject.Object {
         if (params.monitorIndex)
             params.window.move_to_monitor(params.monitorIndex);
         params.window.move_frame(user_op, params.to.x, params.to.y);
+        logGeomRequest('ease-move', params.window, params.to);
         params.window.move_resize_frame(
             user_op,
             params.to.x,

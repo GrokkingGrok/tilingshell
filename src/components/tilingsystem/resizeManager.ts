@@ -3,6 +3,7 @@ import SignalHandling from '../../utils/signalHandling';
 import Settings from '../../settings/settings';
 import ExtendedWindow from './extendedWindow';
 import { getWindows } from '../../utils/ui';
+import { logGeomRequest } from '../../utils/geomDebug';
 
 export class ResizingManager {
     private _signals: SignalHandling | null;
@@ -352,12 +353,19 @@ export class ResizingManager {
                             : resizedRect.y);
                 }
 
+                const requested = {
+                    x: Math.max(0, rect[0]),
+                    y: Math.max(0, rect[1]),
+                    width: Math.max(0, rect[2]),
+                    height: Math.max(0, rect[3]),
+                };
+                logGeomRequest('complement-resize', otherWindow, requested);
                 otherWindow.move_resize_frame(
                     false,
-                    Math.max(0, rect[0]),
-                    Math.max(0, rect[1]),
-                    Math.max(0, rect[2]),
-                    Math.max(0, rect[3]),
+                    requested.x,
+                    requested.y,
+                    requested.width,
+                    requested.height,
                 );
             },
         );

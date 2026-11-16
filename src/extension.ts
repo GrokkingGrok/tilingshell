@@ -52,6 +52,7 @@ import { LayoutSwitcherPopup } from './components/layoutSwitcher/layoutSwitcher'
 import { unmaximizeWindow } from './utils/gnomesupport';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import { RaiseTogetherManager } from './components/raiseTogether/raiseTogetherManager';
+import { disableGeomDebug, enableGeomDebug } from './utils/geomDebug';
 
 const debug = logger('extension');
 
@@ -183,6 +184,8 @@ export default class TilingShellExtension extends Extension {
 
         if (Settings.OVERRIDE_WINDOW_MENU) OverriddenWindowMenu.enable();
         if (Settings.OVERRIDE_ALT_TAB) OverriddenAltTab.enable();
+
+        enableGeomDebug();
 
         debug('extension is enabled');
     }
@@ -811,6 +814,8 @@ export default class TilingShellExtension extends Extension {
 
         // restore native edge tiling and all the overridden settings
         SettingsOverride.destroy();
+
+        disableGeomDebug();
 
         // destroy state and settings
         GlobalState.destroy();
