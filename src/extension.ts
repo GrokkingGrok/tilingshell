@@ -53,6 +53,7 @@ import { unmaximizeWindow } from './utils/gnomesupport';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
 import { RaiseTogetherManager } from './components/raiseTogether/raiseTogetherManager';
 import { disableGeomDebug, enableGeomDebug } from './utils/geomDebug';
+import { disableClampDrift, enableClampDrift } from './utils/clampDrift';
 
 const debug = logger('extension');
 
@@ -186,6 +187,7 @@ export default class TilingShellExtension extends Extension {
         if (Settings.OVERRIDE_ALT_TAB) OverriddenAltTab.enable();
 
         enableGeomDebug();
+        enableClampDrift();
 
         debug('extension is enabled');
     }
@@ -815,6 +817,7 @@ export default class TilingShellExtension extends Extension {
         // restore native edge tiling and all the overridden settings
         SettingsOverride.destroy();
 
+        disableClampDrift();
         disableGeomDebug();
 
         // destroy state and settings

@@ -309,6 +309,11 @@
             <summary>Log tiled window geometry</summary>
             <description>When enabled, write tiled-window frame, buffer, and tile rectangles to the journal with the [TS-GEOM] prefix. Toggle with gsettings. Off by default.</description>
         </key>
+        <key name="clamp-tiled-drift" type="b">
+            <default>true</default>
+            <summary>Clamp small tiled-window drift</summary>
+            <description>When enabled, move a tiled window back to the last rectangle Tiling Shell set if an unsolicited size change is only a few pixels. Turn off to restore stock behavior.</description>
+        </key>
     </schema>
 
 </schemalist>

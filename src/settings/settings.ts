@@ -106,6 +106,7 @@ export default class Settings {
     static KEY_RAISE_TOGETHER = 'raise-together';
     static KEY_RAISE_TOGETHER_CURRENT_MONITOR_ONLY =
         'raise-together-current-monitor-only';
+
     static KEY_ACTIVE_SCREEN_EDGES = 'active-screen-edges';
     static KEY_TOP_EDGE_MAXIMIZE = 'top-edge-maximize';
     static KEY_OVERRIDE_WINDOW_MENU = 'override-window-menu';
@@ -128,6 +129,7 @@ export default class Settings {
     static KEY_EDGE_TILING_MODE = 'edge-tiling-mode';
     static KEY_SYNC_LAYOUT_ACROSS_WORKSPACES = 'sync-layout-across-workspaces';
     static KEY_DEBUG_GEOMETRY_LOG = 'debug-geometry-log';
+    static KEY_CLAMP_TILED_DRIFT = 'clamp-tiled-drift';
 
     static SETTING_MOVE_WINDOW_RIGHT = 'move-window-right';
     static SETTING_MOVE_WINDOW_LEFT = 'move-window-left';
@@ -719,6 +721,14 @@ export default class Settings {
 
     static set DEBUG_GEOMETRY_LOG(val: boolean) {
         set_boolean(Settings.KEY_DEBUG_GEOMETRY_LOG, val);
+    }
+
+    static get CLAMP_TILED_DRIFT(): boolean {
+        return get_boolean(Settings.KEY_CLAMP_TILED_DRIFT);
+    }
+
+    static set CLAMP_TILED_DRIFT(val: boolean) {
+        set_boolean(Settings.KEY_CLAMP_TILED_DRIFT, val);
     }
 
     static save_layouts_json(layouts: Layout[]) {

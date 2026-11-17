@@ -2,6 +2,7 @@ import { Gio, Meta } from '../gi/ext';
 import Settings from '../settings/settings';
 import ExtendedWindow from '../components/tilingsystem/extendedWindow';
 import TileUtils from '../components/layout/TileUtils';
+import { getGeomTarget, rememberTilingTarget } from './geomState';
 
 const PREFIX = '[TS-GEOM]';
 
@@ -11,10 +12,6 @@ type RectLike = {
     width: number;
     height: number;
 };
-
-interface GeomWindow extends Meta.Window {
-    __ts_geom_target?: RectLike;
-}
 
 interface MaybeClientDecorated extends Meta.Window {
     is_client_decorated?: () => boolean;
@@ -187,7 +184,7 @@ export function logGeomRequest(
             width: rect.width,
             height: rect.height,
         };
-        (window as GeomWindow).__ts_geom_target = target;
+        rememberTilingTarget(window, target);
         if (!debugOn()) return;
 
         console.log(
@@ -214,7 +211,7 @@ export function logGeomSignal(signal: string, window: Meta.Window): void {
         const frame = window.get_frame_rect();
         const buffer = window.get_buffer_rect();
         const tilePx = tilePixel(window);
-        const target = (window as GeomWindow).__ts_geom_target;
+        const target = getGeomTarget(window);
         console.log(
             PREFIX,
             `signal=${signal}`,
