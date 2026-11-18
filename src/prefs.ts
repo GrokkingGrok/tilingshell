@@ -275,6 +275,15 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
         );
         behaviourGroup.add(autoTilingRow);
 
+        const restoreTileAfterUnmaximizeRow = this._buildSwitchRow(
+            Settings.KEY_RESTORE_TILE_AFTER_UNMAXIMIZE,
+            _('Restore tile after unmaximize'),
+            _(
+                'When a tiled window is maximized and then restored, place it back in its tile',
+            ),
+        );
+        behaviourGroup.add(restoreTileAfterUnmaximizeRow);
+
         const resizeComplementingRow = this._buildSwitchRow(
             Settings.KEY_RESIZE_COMPLEMENTING_WINDOWS,
             _('Enable auto-resize of the complementing tiled windows'),

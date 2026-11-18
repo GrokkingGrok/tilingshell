@@ -37,6 +37,48 @@ import {
 
 const MINIMUM_DISTANCE_TO_RESTORE_ORIGINAL_SIZE = 90;
 
+// Per-window signals for a tile saved across maximize. Shared by every
+// monitor manager: the tile itself lives on the window.
+const tileBeforeMaximizeSignals = new Map<Meta.Window, number[]>();
+
+function watchTileBeforeMaximize(window: Meta.Window): void {
+    if (tileBeforeMaximizeSignals.has(window)) return;
+
+    const ids = [
+        window.connect('unmanaged', () => {
+            clearTileBeforeMaximize(window);
+        }),
+        window.connect('workspace-changed', () => {
+            const extWin = window as ExtendedWindow;
+            if (!extWin.tileBeforeMaximize) return;
+            // Moving to another workspace while maximized drops the saved tile.
+            if (!window.maximizedHorizontally && !window.maximizedVertically)
+                return;
+
+            clearTileBeforeMaximize(window);
+        }),
+    ];
+    tileBeforeMaximizeSignals.set(window, ids);
+}
+
+function clearTileBeforeMaximize(window: Meta.Window): void {
+    const extWin = window as ExtendedWindow;
+    delete extWin.tileBeforeMaximize;
+    delete extWin.monitorBeforeMaximize;
+
+    const ids = tileBeforeMaximizeSignals.get(window);
+    if (!ids) return;
+
+    tileBeforeMaximizeSignals.delete(window);
+    ids.forEach((id) => {
+        try {
+            window.disconnect(id);
+        } catch {
+            // The window may already be unmanaged.
+        }
+    });
+}
+
 class SnapAssistingInfo {
     private _snapAssistantLayoutId: string | undefined;
 
@@ -71,6 +113,8 @@ export class TilingManager {
     private _enableScaling: boolean;
 
     private _isGrabbingWindow: boolean;
+    private _grabbedWindow: Meta.Window | null = null;
+    private _destroyed: boolean = false;
     private _rmbFilterId: number = 0;
     private _rmbFilterInstalled: boolean = false;
     private _movingWindowTimerDuration: number = 15;
@@ -216,6 +260,9 @@ export class TilingManager {
                 window: Meta.Window,
                 grabOp: Meta.GrabOp,
             ) => {
+                // Any grab, not only moves: dragging a maximized window off
+                // the top bar unmaximizes it and must stay a floating drag.
+                this._grabbedWindow = window;
                 const moving = (grabOp & ~1024) === 1;
                 if (!moving) return;
 
@@ -227,6 +274,7 @@ export class TilingManager {
             global.display,
             'grab-op-end',
             (_display: Meta.Display, window: Meta.Window) => {
+                if (this._grabbedWindow === window) this._grabbedWindow = null;
                 if (!this._isGrabbingWindow) return;
 
                 this._onWindowGrabEnd(window);
@@ -309,20 +357,83 @@ export class TilingManager {
             'unmaximized',
             (_, window: Meta.Window) => {
                 if (Settings.ENABLE_AUTO_TILING) this._autoTile(window, false);
+
+                const extWin = window as ExtendedWindow;
+                // Only the manager that owned the window when it was maximized
+                // restores it. Other managers also receive this signal.
+                if (extWin.monitorBeforeMaximize !== this._monitor.index)
+                    return;
+                if (!extWin.tileBeforeMaximize) return;
+
+                // Auto-tiling assigns its own tile and wins. With the setting
+                // off, drop the saved tile and keep today's behavior.
+                if (
+                    !Settings.RESTORE_TILE_AFTER_UNMAXIMIZE ||
+                    extWin.assignedTile
+                ) {
+                    clearTileBeforeMaximize(window);
+                    return;
+                }
+
+                // Keyboard moves and menu tiling unmaximize, then retile, in
+                // the same turn. Wait until idle so that assignment wins.
+                // A grab already active here (dragging the title bar) must
+                // keep the window floating even if the grab ends before idle.
+                const grabWasActive = this._isGrabActiveOn(window);
+                GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                    this._restoreTileAfterUnmaximize(window, grabWasActive);
+                    return GLib.SOURCE_REMOVE;
+                });
             },
         );
 
-        // forget assigned tile when window is maximized
+        // Remember the tile, then forget the assignment while maximized so
+        // resize and focus keep treating the window as not tiled.
         this._signals.connect(
             TilingShellWindowManager.get(),
             'maximized',
             (_, window: Meta.Window) => {
-                delete (window as ExtendedWindow).assignedTile;
+                const extWin = window as ExtendedWindow;
+                if (extWin.assignedTile) {
+                    extWin.tileBeforeMaximize = new Tile({
+                        ...extWin.assignedTile,
+                    });
+                    extWin.monitorBeforeMaximize = window.get_monitor();
+                    watchTileBeforeMaximize(window);
+                }
+                delete extWin.assignedTile;
             },
         );
+
+        this._signals.connect(
+            global.display,
+            'window-entered-monitor',
+            (
+                _display: Meta.Display,
+                monitorIndex: number,
+                window: Meta.Window,
+            ) => {
+                const extWin = window as ExtendedWindow;
+                if (extWin.monitorBeforeMaximize === undefined) return;
+                if (monitorIndex === extWin.monitorBeforeMaximize) return;
+                if (
+                    !window.maximizedHorizontally &&
+                    !window.maximizedVertically
+                )
+                    return;
+
+                clearTileBeforeMaximize(window);
+            },
+        );
+
+        this._rewatchTilesBeforeMaximize();
     }
 
     public onUntileWindow(window: Meta.Window, force: boolean): void {
+        // Untile wins over a pending restore, including untile of a window
+        // that was just unmaximized in this same turn.
+        clearTileBeforeMaximize(window);
+
         const destination = (window as ExtendedWindow).originalSize;
         if (!destination) return;
 
@@ -469,11 +580,13 @@ export class TilingManager {
      * Destroys the tiling manager and cleans up resources.
      */
     public destroy() {
+        this._destroyed = true;
         if (this._movingWindowTimerId) {
             GLib.Source.remove(this._movingWindowTimerId);
             this._movingWindowTimerId = null;
         }
         this._signals.disconnect();
+        this._releaseTileBeforeMaximizeWatches();
         this._isGrabbingWindow = false;
         this._removeRmbFilterIfInstalled();
         this._snapAssistingInfo.update(undefined);
@@ -1244,6 +1357,87 @@ export class TilingManager {
         }
 
         this.openSelectionTilePreview(edgeTile, false, true, window);
+    }
+
+    private _isGrabActiveOn(window: Meta.Window): boolean {
+        if (this._grabbedWindow !== window) return false;
+
+        // Older Mutter exposes the current grab. If it already ended, the
+        // tracked window is stale and this unmaximize is not a drag.
+        const display = global.display as Meta.Display & {
+            get_grab_op?: () => Meta.GrabOp;
+        };
+        if (typeof display.get_grab_op !== 'function') return true;
+
+        return display.get_grab_op() !== Meta.GrabOp.NONE;
+    }
+
+    private _restoreTileAfterUnmaximize(
+        window: Meta.Window,
+        grabWasActive: boolean,
+    ): void {
+        const extWin = window as ExtendedWindow;
+        const tile = extWin.tileBeforeMaximize;
+        const monitorIndex = extWin.monitorBeforeMaximize;
+        // Always drop the saved tile after this attempt, including when
+        // another path already retiled the window or the restore is skipped.
+        clearTileBeforeMaximize(window);
+
+        if (this._destroyed || !tile || monitorIndex === undefined) return;
+        if (!Settings.RESTORE_TILE_AFTER_UNMAXIMIZE) return;
+        if (monitorIndex !== this._monitor.index) return;
+        if (grabWasActive || this._isGrabActiveOn(window)) return;
+        // _easeWindowRectFromTile and onKeyboardMoveWindow unmaximize and
+        // then assign a tile themselves. That assignment wins.
+        if (extWin.assignedTile) return;
+        if (!window.get_compositor_private()) return;
+        if (window.get_monitor() !== monitorIndex) return;
+        if (window.minimized || window.is_fullscreen()) return;
+
+        const originalSize = extWin.originalSize;
+        // Set a tile first so _easeWindowRectFromTile does not record the
+        // maximized or restored rect as originalSize. Untile still needs the
+        // pre-tiling floating size.
+        const placeholder = new Tile({ ...tile });
+        extWin.assignedTile = placeholder;
+        this._easeWindowRectFromTile(tile, window, true);
+        extWin.originalSize = originalSize;
+        if (extWin.assignedTile === placeholder) {
+            extWin.assignedTile = undefined;
+            return;
+        }
+
+        extWin.assignedTile = new Tile({ ...tile });
+    }
+
+    private _rewatchTilesBeforeMaximize(): void {
+        global.get_window_actors().forEach((winActor) => {
+            const window = winActor.metaWindow;
+            if (!window) return;
+
+            const extWin = window as ExtendedWindow;
+            if (extWin.monitorBeforeMaximize !== this._monitor.index) return;
+            if (!extWin.tileBeforeMaximize) return;
+
+            watchTileBeforeMaximize(window);
+        });
+    }
+
+    private _releaseTileBeforeMaximizeWatches(): void {
+        [...tileBeforeMaximizeSignals.keys()].forEach((window) => {
+            const extWin = window as ExtendedWindow;
+            if (extWin.monitorBeforeMaximize !== this._monitor.index) return;
+
+            const ids = tileBeforeMaximizeSignals.get(window);
+            tileBeforeMaximizeSignals.delete(window);
+            ids?.forEach((id) => {
+                try {
+                    window.disconnect(id);
+                } catch {
+                    // The window may already be unmanaged.
+                }
+            });
+        });
     }
 
     private _easeWindowRectFromTile(
